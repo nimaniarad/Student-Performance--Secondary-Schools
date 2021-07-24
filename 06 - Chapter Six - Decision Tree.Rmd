@@ -1,0 +1,156 @@
+---
+title: "06 - Chapter Six - Decision Tree"
+author: "Nima Niarad"
+date: "7/24/2021"
+output:
+  rmarkdown::github_document: default
+  rmarkdowngithub_document: default
+---
+
+<style> body {text-align: justify} </style> <!-- Justify text. -->
+
+### **Decision Tree**
+
+**Introduction**
+
+Applying Decision Tree, and three other methods to improve it; Bagging, Boosting and Random Forest. At the end, comparing the results and explaining them in much more details. 
+
+**Loading library and data...**
+
+```{r,warning=FALSE, message=FALSE}
+library(tree)
+MStud=read.table("C:/Nima/Data/student-mat.csv",sep=";",header=TRUE)
+attach(MStud)
+VG3= ifelse(G3>=10 ,"Pass","Fail")
+MStud = data.frame(MStud , VG3)
+MStud$VG3=as.factor(MStud$VG3)
+```
+
+**Fitting the Tree**
+
+```{r,warning=FALSE, message=FALSE}
+tree.MStud = tree(VG3 ~.-G2-G1-G3, data = MStud)
+summary(tree.MStud)
+```
+
+```{r}
+plot(tree.MStud)
+text(tree.MStud)
+```
+
+**Evaluation: Confusion Matrix**
+
+The important part is about the test error rate. I will get the rate and try to select the best number of tree nods in terms of the lowest error rate. 
+
+```{r,warning=FALSE, message=FALSE}
+set.seed (2)
+train = sample(1:nrow(MStud), nrow(MStud)/2)
+MStud.test = MStud[-train, ]
+VG3.test =VG3[- train ]
+
+tree.MStud =tree(VG3 ~.-G2-G1-G3 , MStud , subset =train )
+tree.pred = predict(tree.MStud , MStud.test ,type ="class")
+table(tree.pred ,VG3.test)
+```
+
+```{r}
+print("Test Error Rate"); print((43+19)/(21+19+4+115))
+```
+This approach leads to correct predictions for around %62 in the test data set.
+
+
+**Apply CV (Cross Validation Method) to select Best Tree Size**
+
+```{r, warning=FALSE}
+set.seed(2)
+cv.MStud =cv.tree(tree.MStud ,FUN = prune.misclass )
+names(cv.MStud)
+cv.MStud
+```
+
+- dev corresponds to the cross-validation error rate. 
+
+```{r}
+par(mfrow = c(1 ,2))
+plot(cv.MStud$size ,cv.MStud$dev , type ="b")
+plot(cv.MStud$k ,cv.MStud$dev , type ="b")
+```
+
+The best one is including 2 nods! But it cannot be helpful.  5 and 6 has the same error rate, and I go for 6 to have more variables in the model. 
+
+- Applying the prune.misclass() function in order to prune the tree to obtain the 6-node tree:
+
+```{r}
+prune.MStud = prune.misclass(tree.MStud , best =6)
+plot( prune.MStud )
+text( prune.MStud , pretty =0)
+```
+
+```{r,warning=FALSE, message=FALSE}
+tree.pred = predict(prune.MStud , MStud.test , type ="class")
+table(tree.pred ,VG3.test)
+```
+
+```{r}
+print("Test Error Rate"); print((44+12)/(20+12+44+122))
+```
+This is the best test error rate I have got so far. Now %72 of the test observations are correctly classified.
+The classification accuracy is also improved. 
+
+I also repeat the process for G1 and G2, but before performing that, it is better to apply Random Forest, Boosting, and begging approaches to see if I can get a better result than above (DT). 
+
+What I do is improving the DT using bagging, random forests, and boosting methods. 
+
+### **Bagging**
+
+Using the randomForest package considering all predictors. 
+
+```{r}
+library(randomForest)
+
+set.seed(2)
+bag.MStud = randomForest(VG3 ~.-G1-G2-G3, data = MStud, subset = train, mtry=34, important=T)
+bag.MStud
+```
+
+```{r}
+yhat.bag = predict(bag.MStud , MStud.test , type ="class")
+table(yhat.bag ,VG3.test)
+```
+
+```{r}
+print("Test Error Rate"); print((36+23)/(28+23+36+111))
+```
+There is a %29 misclassification. 
+
+### **Random Forest**
+
+```{r, warning=FALSE}
+library(randomForest)
+set.seed(2)
+rf.MStud = randomForest(VG3 ~.-G1-G2-G3, data = MStud, subset = train, important=T)
+
+#mtry: The default number is sqrt(p) for classification; 
+
+yhat.bag = predict(rf.MStud , MStud.test , type ="class")
+table(yhat.bag ,VG3.test)
+
+print("Test Error Rate"); print((49+16)/(15+16+49+118))
+```
+```{r}
+## variable importance
+importance(rf.MStud)
+varImpPlot(rf.MStud)
+```
+
+
+Here, I have applied all 30 variables (except G1 and G2) to figure out the important ones for the model. Random Forest suggests that I should consider "failures", "absences", "goout", "freetime", "Mjob", "age", and "Health" as the top priority predictors.  
+
+
+
+
+
+
+
+
+
