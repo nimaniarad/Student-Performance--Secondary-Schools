@@ -1,0 +1,204 @@
+---
+title: "05 - Chapter 05 - Support Vector Machine (SVM)"
+author: "Nima Niarad"
+date: "7/24/2021"
+output:
+  rmarkdown::github_document: default
+  rmarkdowngithub_document: default
+---
+
+<style> body {text-align: justify} </style> <!-- Justify text. -->
+
+
+### **Loading the Data...**
+
+```{r}
+library(readr)
+MStud=read.table("C:/Nima/Rstudio/Git/Student Performance, Secondary Schools/Student-Performance--Secondary-Schools/student-mat.csv",sep=";",header=TRUE)
+```
+
+### **Introduction** 
+**SVM; Support Vector Machine**
+\hfill\break
+\hfill\break
+It is a new supervised method used for classification data.
+SVMs are applied for the binary classification with two or more classes.
+
+So, first diveding the G3 into two groups; Fail: Below 10, Pass: Above 10.
+
+```{r}
+MStud$G3= ifelse(MStud$G3>=10 ,"Pass","Fail")
+
+MStud$G3=as.factor(MStud$G3)
+```
+
+**Making Test and Train Dataset**
+
+```{r}
+set.seed(1)
+train = sample(1:nrow(MStud), nrow(MStud)/2)
+MStud.test = MStud[-train, ]
+```
+
+```{r}
+library(e1071)
+set.seed (1)
+MStud = na.omit(MStud)
+svmfit = svm(G3 ~ +school+sex+age+address+famsize+Pstatus+Medu+Fedu+Mjob+Fjob+reason+guardian+traveltime+
+  studytime+failures+schoolsup+famsup+paid+activities+nursery+higher+internet+romantic+famrel+
+  freetime+goout+Dalc+Walc+health+absences-G1-G2, 
+  data = MStud,subset = train, cost = 1,kernel="linear", scale=T)
+summary(svmfit)
+```
+
+- Performing on the Training Set: 
+There are 125 support vectors; 69 on one side and 56 on the other.  
+
+**The Test Error Rate**
+
+```{r}
+ypred = predict(svmfit , MStud.test)
+table(MStud.test$G3 , ypred)
+```
+
+```{r}
+print("Test Error Rate"); print((14+54)/(20+54+110+14))
+```
+
+About 34 percent of test observations are misclassified by this SVM! 
+
+Given that knowing the important variables, lets try and see to reduce the test error rate. 
+
+
+```{r}
+svmfit = svm(G3 ~ Medu+Mjob+studytime+failures+famsup+romantic+goout+absences-G1-G2, 
+  data = MStud,subset = train, cost = 1,kernel="linear", scale=T)
+
+ypred = predict(svmfit , MStud.test)
+table(MStud.test$G3 , ypred)
+
+print("Test Error Rate"); print((6+58)/(16+58+6+118))
+```
+
+The test error rate is improving a little bit by about 3 percent. 
+
+
+- Identifying the Optimal cost 
+
+```{r}
+set.seed (1)
+tune.out = tune(svm ,G3 ~ Medu+Mjob+studytime+failures+famsup+romantic+goout+absences-G1-G2, 
+                data = MStud, kernel ="linear",scale = T,
+                ranges =list (cost=c(0.001 , 0.01 , 0.1, 1 ,5 ,10 ,100)))
+summary(tune.out)
+```
+
+```{r}
+
+svmfit = svm(G3 ~ Medu+Mjob+studytime+failures+famsup+romantic+goout+absences-G1-G2,
+             data = MStud, subset = train, kernel="linear", 
+             cost = 10	, scale=T)
+
+ypred = predict(svmfit , MStud.test)
+table(MStud.test$G3 , ypred)
+```
+
+```{r}
+print("Test Error Rate"); print((59+8)/(15+59+8+116))
+```
+
+It is the time to go for radial and polynomial kernels. 
+
+**Radial**
+
+```{r}
+tune.out = tune(svm ,G3 ~ Medu+Mjob+studytime+failures+famsup+romantic+goout+absences-G1-G2, 
+                data = MStud, kernel ="radial",scale = T,
+                ranges =list (cost=c(0.001 , 0.01 , 0.1, 1 ,5 ,10 ,100)))
+summary(tune.out)
+```
+
+
+```{r}
+svmfit = svm(G3 ~ Medu+Mjob+studytime+failures+famsup+romantic+goout+absences-G1-G2,
+             data = MStud, subset = train, kernel="radial", 
+             cost = 1, scale=T)
+
+ypred = predict(svmfit , MStud.test)
+table(MStud.test$G3 , ypred)
+```
+
+```{r}
+print("Radial - Test Error Rate"); print((6+61)/(13+61+6+118))
+```
+
+It is almost the same! 
+
+**Polynomial Kernel**
+
+```{r}
+tune.out = tune(svm ,G3 ~ Medu+Mjob+studytime+failures+famsup+romantic+goout+absences-G1-G2, 
+                data = MStud, kernel="polynomial", d = 2, scale = T,
+                ranges =list (cost=c(0.001 , 0.01 , 0.1, 1 ,5 ,10 ,100)))
+summary(tune.out)
+```
+
+
+
+```{r}
+svmfit = svm(G3 ~ Medu+Mjob+studytime+failures+famsup+romantic+goout+absences-G1-G2,
+             data = MStud, subset = train, kernel="polynomial", d = 2, 
+             cost = 5, scale=T)
+
+ypred = predict(svmfit , MStud.test)
+table(MStud.test$G3 , ypred)
+```
+
+
+```{r}
+print("Radial - Test Error Rate"); print((4+60)/(14+60+4+120))
+```
+
+It is almost the same as the linear kernel. 
+
+Overall, the support vector classifier (Linear Kernel) is working better than the other. 
+
+
+### **Multiple Classes**
+
+Dividing the G3 into three classes: Failed students (Below 10), Pass students(Greater than equals 10) and Top ones (greater than 15).
+
+```{r,warning=FALSE,message=FALSE}
+library(e1071)
+
+MStud=read.table("C:/Nima/Data/student-mat.csv",sep=";",header=TRUE)
+attach(MStud)
+set.seed(2)
+
+train = sample(1:nrow(MStud), nrow(MStud)/2)
+MStud.test = MStud[-train, ]
+
+MStud$G3 = as.factor(ifelse(G3>15, 2, ifelse(G3<10 & G3>10,0, 1)))
+table(MStud$G3.level) 
+
+svmfit.radial.2 = svm(G3 ~ Medu+Mjob+studytime+failures+famsup+romantic+goout+absences-G1-G2
+                      ,data = MStud, kernel = "radial", gamma=1, cost=100)
+
+ypred = predict(svmfit.radial.2 , MStud.test)
+table(MStud.test$G3 , ypred)
+```
+
+
+```{r}
+print("Test Error Rate"); print((1+12+19+7+6+5+15)/(15+5+6+7+19+12+27+22+11+16+13+21+1+8+4+7+3+1))
+```
+
+
+
+
+
+
+
+
+
+
